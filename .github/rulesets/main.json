@@ -50,14 +50,6 @@
           {
             "context": "conventions / lint",
             "integration_id": 15368
-          },
-          {
-            "context": "checks",
-            "integration_id": 15368
-          },
-          {
-            "context": "image / build",
-            "integration_id": 15368
           }
         ]
       }
