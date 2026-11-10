@@ -1,37 +1,21 @@
-# repo-template
+# factory
 
-Template for new `thomas-lg-lab` repositories: exactly the files every repository of the organisation carries,
-ready from the first commit. Create a repository from it with **Use this template** on GitHub, or
-`gh repo create thomas-lg-lab/<name> --template thomas-lg-lab/repo-template --public --clone`.
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/thomas-lg-lab/factory/badge)](https://scorecard.dev/viewer/?uri=github.com/thomas-lg-lab/factory)
 
-The organisation drives the rest from [`thomas-lg-lab/.github`](https://github.com/thomas-lg-lab/.github): issue
-forms, PR template, SECURITY.md and code of conduct defaults, the shared workflows, the Release Drafter
-configuration and the settings script.
+Creates the organisation's repositories, so that nobody but the owners needs the right to create one or to change
+its settings. Members (people and the machine account) dispatch **Create repository** with a name and a
+description; the workflow, acting as the organisation's factory App:
 
-## What you get
+1. checks the name (lowercase letters, digits, dashes; never ending in `-lab`) and that the repository does not exist;
+2. creates it, public, from [`repo-template`](https://github.com/thomas-lg-lab/repo-template);
+3. runs `apply-standards.sh` from [`.github`](https://github.com/thomas-lg-lab/.github) at a pinned release:
+   settings, security features, CodeQL default setup, immutable releases, labels and the template's rulesets.
 
-| File | Role |
-| --- | --- |
-| `.github/workflows/pull-request.yml` | Conventional Commit PR title (required check) and label, shared workflow |
-| `.github/workflows/ci.yml` | The project's checks, then the shared image build: Trivy gate on PRs, `edge` and `sha-*` from main, `X.Y.Z` and `latest` from a release |
-| `.github/workflows/release-drafter.yml` | Draft release from the merged PRs; a manual run publishes it and builds the release image |
-| `.github/workflows/registry-cleanup.yml` | Weekly pruning of old `sha-*` images |
-| `.github/workflows/scorecard.yml` | OpenSSF Scorecard (Security tab and badge) |
-| `.github/rulesets/` | `Protect main` (squash only, linear history, signed commits, required checks, CodeQL results, no bypass) and `Code owner review` (changes under `.github/`) |
-| `.github/CODEOWNERS`, `renovate.json`, `LICENSE`, `SECURITY.md`, `AGENTS.md`, `.editorconfig`, `.gitattributes` | Per repository by nature; `renovate.json` extends the shared preset of `thomas-lg-lab/renovate-config` |
-
-## After creating a repository from it
-
-1. Replace the `checks` job of `ci.yml` with the project's build, tests and lint; list their job names in `needs`
-   of `image` and in `required_status_checks` of `.github/rulesets/main.json`. Without an image, delete the
-   `image` job, `image / build` from the ruleset and `registry-cleanup.yml`.
-2. From the root of the new clone, with the organisation's `.github` repository cloned next to it:
-   `../.github/scripts/apply-standards.sh thomas-lg-lab/<name>` (settings, security features, CodeQL default
-   setup, labels, rulesets). Run it again after editing a ruleset file.
-3. Write the local check commands in a CONTRIBUTING.md (the organisation's PR template points there), and the
-   project's specifics in `AGENTS.md`. Renovate needs nothing: the organisation's App covers every repository.
-4. Replace this README, keep the badge:
-
-```markdown
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/thomas-lg-lab/<name>/badge)](https://scorecard.dev/viewer/?uri=github.com/thomas-lg-lab/<name>)
+```bash
+gh workflow run create-repository.yml -R thomas-lg-lab/factory -f name=<name> -f description="<one line>"
 ```
+
+The App holds Administration write, Issues write and Contents read on the organisation's repositories, and
+nothing at the organisation level; each run mints two tokens, each limited to one repository (the template, then
+the new one). Its Client ID is the variable `FACTORY_APP_CLIENT_ID`, its private key the secret
+`FACTORY_APP_PRIVATE_KEY`. Deleting or archiving a repository stays with the owners.

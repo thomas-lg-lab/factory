@@ -22,3 +22,10 @@
   adding one (Renovate keeps them current).
 - **Secrets** never go in the repository, in a commit message or in a log.
 - Technical files are written in English.
+
+## This repository
+
+- One workflow, `create-repository.yml`. Its tokens are the factory App's, minted per run and each limited to one
+  repository (the template, then the new one) with Administration write, Issues write and Contents read at most:
+  never more, never owner-wide, and never print a token.
+- The organisation's standards come from `thomas-lg-lab/.github` at a pinned release: change them there.

@@ -1,0 +1,119 @@
+# Creates a repository of the organisation from thomas-lg-lab/repo-template and applies the organisation's standards
+# (settings, security features, CodeQL default setup, immutable releases, labels, rulesets) with
+# apply-standards.sh from thomas-lg-lab/.github. Members dispatch it: nobody but the owners needs the right to create
+# repositories, and the machine account keeps write without admin.
+#
+# It acts as the organisation's factory App: its Client ID is the repository variable FACTORY_APP_CLIENT_ID, its
+# private key the secret FACTORY_APP_PRIVATE_KEY. The App holds Administration write and Issues write on the
+# organisation's repositories (installed on all of them) and Contents read. Each run mints two tokens, each limited
+# to one repository: the template's to generate from it, then the new repository's to apply the standards. A new
+# repository is public: the organisation's rulesets and code scanning need it on the Free plan.
+name: Create repository
+
+on:
+  workflow_dispatch:
+    inputs:
+      name:
+        description: "Repository name: lowercase letters, digits and dashes, 2 to 50 characters"
+        required: true
+        type: string
+      description:
+        description: "One-line description (shown on GitHub)"
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: create-repository
+  cancel-in-progress: false
+
+jobs:
+  create:
+    runs-on: ubuntu-latest
+    permissions: {}
+    env:
+      OWNER: ${{ github.repository_owner }}
+      NAME: ${{ inputs.name }}
+      DESCRIPTION: ${{ inputs.description }}
+    steps:
+      - name: Check the inputs
+        run: |
+          echo "$NAME" | grep -Eq '^[a-z0-9]([a-z0-9-]{0,48}[a-z0-9])$' \
+            || { echo "::error::Bad name '$NAME': lowercase letters, digits and dashes, 2 to 50 characters."; exit 1; }
+          case "$NAME" in
+            *-lab) echo "::error::A repository name never ends in -lab: the suffix marks the lab deployment."; exit 1 ;;
+            *--*) echo "::error::No double dash in a name."; exit 1 ;;
+          esac
+          [ "${#DESCRIPTION}" -ge 5 ] && [ "${#DESCRIPTION}" -le 200 ] \
+            || { echo "::error::The description takes 5 to 200 characters."; exit 1; }
+
+      - name: Mint a token for the template
+        id: template-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.FACTORY_APP_CLIENT_ID }}
+          private-key: ${{ secrets.FACTORY_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: repo-template
+          permission-administration: write
+          permission-contents: read
+
+      - name: Create the repository from the template
+        env:
+          GH_TOKEN: ${{ steps.template-token.outputs.token }}
+        run: |
+          if gh api "repos/$OWNER/$NAME" --silent 2>/dev/null; then
+            echo "::error::$OWNER/$NAME already exists."; exit 1
+          fi
+          gh api -X POST "repos/$OWNER/repo-template/generate" \
+            -f owner="$OWNER" -f name="$NAME" -f description="$DESCRIPTION" -F private=false >/dev/null
+          # Generation is asynchronous: wait for the template's commit to land.
+          for _ in $(seq 1 30); do
+            gh api "repos/$OWNER/$NAME/branches/main" --silent 2>/dev/null && exit 0
+            sleep 2
+          done
+          echo "::error::$OWNER/$NAME has no main branch after 60 s."; exit 1
+
+      - name: Mint a token for the new repository
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.FACTORY_APP_CLIENT_ID }}
+          private-key: ${{ secrets.FACTORY_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ inputs.name }}
+          permission-administration: write
+          permission-issues: write
+          permission-contents: read
+
+      - name: Check out the new repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ github.repository_owner }}/${{ inputs.name }}
+          token: ${{ steps.app-token.outputs.token }}
+          path: new
+          persist-credentials: false
+
+      - name: Check out the organisation's standards
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ github.repository_owner }}/.github
+          ref: 54ca50420258f144ef973c2a29005eb416f6660a # v2.3.0
+          path: org
+          persist-credentials: false
+
+      - name: Apply the standards
+        working-directory: new
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: bash ../org/scripts/apply-standards.sh "$OWNER/$NAME"
+
+      - name: Summary
+        run: |
+          {
+            echo "## $OWNER/$NAME created"
+            echo
+            echo "https://github.com/$OWNER/$NAME, from \`repo-template\`, standards applied."
+            echo "Next, in the new repository: its checks in \`ci.yml\` and their names in \`.github/rulesets/main.json\` (template README)."
+          } >> "$GITHUB_STEP_SUMMARY"
