@@ -25,6 +25,7 @@
 
 ## This repository
 
-- One workflow, `create-repository.yml`. Its token is the factory App's, minted per run with Administration write,
-  Issues write and Contents read: keep those three, never more, and never print the token.
+- One workflow, `create-repository.yml`. Its tokens are the factory App's, minted per run and each limited to one
+  repository (the template, then the new one) with Administration write, Issues write and Contents read at most:
+  never more, never owner-wide, and never print a token.
 - The organisation's standards come from `thomas-lg-lab/.github` at a pinned release: change them there.

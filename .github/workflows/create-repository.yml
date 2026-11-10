@@ -5,8 +5,9 @@
 #
 # It acts as the organisation's factory App: its Client ID is the repository variable FACTORY_APP_CLIENT_ID, its
 # private key the secret FACTORY_APP_PRIVATE_KEY. The App holds Administration write and Issues write on the
-# organisation's repositories (installed on all of them) and Contents read; each run mints a token with exactly
-# those. A new repository is public: the organisation's rulesets and code scanning need it on the Free plan.
+# organisation's repositories (installed on all of them) and Contents read. Each run mints two tokens, each limited
+# to one repository: the template's to generate from it, then the new repository's to apply the standards. A new
+# repository is public: the organisation's rulesets and code scanning need it on the Free plan.
 name: Create repository
 
 on:
@@ -47,20 +48,20 @@ jobs:
           [ "${#DESCRIPTION}" -ge 5 ] && [ "${#DESCRIPTION}" -le 200 ] \
             || { echo "::error::The description takes 5 to 200 characters."; exit 1; }
 
-      - name: Mint the factory App token
-        id: app-token
+      - name: Mint a token for the template
+        id: template-token
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           client-id: ${{ vars.FACTORY_APP_CLIENT_ID }}
           private-key: ${{ secrets.FACTORY_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
+          repositories: repo-template
           permission-administration: write
-          permission-issues: write
           permission-contents: read
 
       - name: Create the repository from the template
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ steps.template-token.outputs.token }}
         run: |
           if gh api "repos/$OWNER/$NAME" --silent 2>/dev/null; then
             echo "::error::$OWNER/$NAME already exists."; exit 1
@@ -73,6 +74,18 @@ jobs:
             sleep 2
           done
           echo "::error::$OWNER/$NAME has no main branch after 60 s."; exit 1
+
+      - name: Mint a token for the new repository
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.FACTORY_APP_CLIENT_ID }}
+          private-key: ${{ secrets.FACTORY_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ inputs.name }}
+          permission-administration: write
+          permission-issues: write
+          permission-contents: read
 
       - name: Check out the new repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

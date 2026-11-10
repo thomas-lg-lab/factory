@@ -16,5 +16,6 @@ gh workflow run create-repository.yml -R thomas-lg-lab/factory -f name=<name> -f
 ```
 
 The App holds Administration write, Issues write and Contents read on the organisation's repositories, and
-nothing at the organisation level. Its Client ID is the variable `FACTORY_APP_CLIENT_ID`, its private key the secret
+nothing at the organisation level; each run mints two tokens, each limited to one repository (the template, then
+the new one). Its Client ID is the variable `FACTORY_APP_CLIENT_ID`, its private key the secret
 `FACTORY_APP_PRIVATE_KEY`. Deleting or archiving a repository stays with the owners.
